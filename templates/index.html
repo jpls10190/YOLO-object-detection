@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Object Detection - Live Camera</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .main-content {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 30px;
+            align-items: start;
+        }
+
+        .video-section {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 10px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 16/9;
+        }
+
+        #videoFeed {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .video-overlay {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: linear-gradient(45deg, #f44336, #d32f2f);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+
+        .info-panel {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: fit-content;
+        }
+
+        .stats {
+            margin-bottom: 25px;
+        }
+
+        .stat-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            border-left: 4px solid #4CAF50;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.8;
+            margin-bottom: 5px;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #4CAF50;
+        }
+
+        .detections {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .detection-item {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid #2196F3;
+        }
+
+        .detection-class {
+            font-weight: bold;
+            color: #2196F3;
+            margin-bottom: 5px;
+        }
+
+        .detection-confidence {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .status {
+            text-align: center;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .status.connected {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid #4CAF50;
+        }
+
+        .status.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid #f44336;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .header h1 {
+                font-size: 2em;
+            }
+        }
+
+        /* Loading animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎯 YOLO Object Detection</h1>
+            <p>Real-time object detection using YOLOv8</p>
+        </div>
+
+        <div id="status" class="status disconnected">
+            <span id="statusText">Camera Disconnected</span>
+        </div>
+
+        <div class="main-content">
+            <div class="video-section">
+                <div class="video-container">
+                    <img id="videoFeed" src="" alt="Video Feed" style="background: #333;"">
+                    <div class="video-overlay">
+                        <div>🔴 LIVE</div>
+                        <div id="timestamp"></div>
+                    </div>
+                </div>
+                
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="startCamera()">
+                        <span id="startBtnText">Start Camera</span>
+                    </button>
+                    <button class="btn btn-secondary" onclick="stopCamera()">
+                        Stop Camera
+                    </button>
+                </div>
+            </div>
+
+            <div class="info-panel">
+                <h3>📊 Detection Statistics</h3>
+                
+                <div class="stats">
+                    <div class="stat-item">
+                        <div class="stat-label">Objects Detected</div>
+                        <div class="stat-value" id="detectionCount">0</div>
+                    </div>
+                    
+                    <div class="stat-item">
+                        <div class="stat-label">Frame Rate</div>
+                        <div class="stat-value" id="frameRate">0 FPS</div>
+                    </div>
+                </div>
+
+                <h4>🎯 Current Detections</h4>
+                <div class="detections" id="detectionsList">
+                    <p style="opacity: 0.6; text-align: center;">No detections yet...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let isConnected = false;
+        let frameCount = 0;
+        let lastTime = Date.now();
+
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('timestamp').textContent = now.toLocaleTimeString();
+        }
+
+        function startCamera() {
+            const btn = document.getElementById('startBtnText');
+            btn.innerHTML = '<span class="loading"></span> Starting...';
+            
+            fetch('/start_camera')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        isConnected = true;
+                        document.getElementById('videoFeed').src = '/video_feed?' + Date.now();
+                        updateStatus('connected', 'Camera Connected');
+                        startDetectionUpdates();
+                    } else {
+                        alert('Failed to start camera: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to start camera');
+                })
+                .finally(() => {
+                    btn.textContent = 'Start Camera';
+                });
+        }
+
+        function stopCamera() {
+            fetch('/stop_camera')
+                .then(response => response.json())
+                .then(data => {
+                    isConnected = false;
+                    document.getElementById('videoFeed').src = '';
+                    updateStatus('disconnected', 'Camera Disconnected');
+                    stopDetectionUpdates();
+                });
+        }
+
+        function updateStatus(status, text) {
+            const statusEl = document.getElementById('status');
+            const statusText = document.getElementById('statusText');
+            statusEl.className = `status ${status}`;
+            statusText.textContent = text;
+        }
+
+        function startDetectionUpdates() {
+            if (isConnected) {
+                updateDetectionInfo();
+                setTimeout(startDetectionUpdates, 500); // Update every 500ms
+            }
+        }
+
+        function stopDetectionUpdates() {
+            document.getElementById('detectionCount').textContent = '0';
+            document.getElementById('frameRate').textContent = '0 FPS';
+            document.getElementById('detectionsList').innerHTML = '<p style="opacity: 0.6; text-align: center;">No detections yet...</p>';
+        }
+
+        function updateDetectionInfo() {
+            fetch('/detection_info')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('detectionCount').textContent = data.count;
+                    
+                    // Calculate frame rate
+                    frameCount++;
+                    const now = Date.now();
+                    if (now - lastTime >= 1000) {
+                        const fps = Math.round(frameCount * 1000 / (now - lastTime));
+                        document.getElementById('frameRate').textContent = fps + ' FPS';
+                        frameCount = 0;
+                        lastTime = now;
+                    }
+                    
+                    // Update detections list
+                    const detectionsList = document.getElementById('detectionsList');
+                    if (data.detections && data.detections.length > 0) {
+                        detectionsList.innerHTML = data.detections.map(detection => `
+                            <div class="detection-item">
+                                <div class="detection-class">${detection.class}</div>
+                                <div class="detection-confidence">Confidence: ${(detection.confidence * 100).toFixed(1)}%</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        detectionsList.innerHTML = '<p style="opacity: 0.6; text-align: center;">No detections yet...</p>';
+                    }
+                })
+                .catch(error => console.error('Error updating detection info:', error));
+        }
+
+        // Update timestamp every second
+        setInterval(updateTimestamp, 1000);
+        updateTimestamp();
+    </script>
+</body>
+</html>
